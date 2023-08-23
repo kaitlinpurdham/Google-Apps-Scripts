@@ -1,5 +1,6 @@
 /* This script looks for a Jira ticket created within the last 5 minutes, and the creates a Google Drive folder structure and copies files from a central location into the folders. 
 Created June 2023 by Kaitlin Purdham. 
+Written in Javascript.
 */
 
 
