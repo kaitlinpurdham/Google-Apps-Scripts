@@ -1,0 +1,278 @@
+/* This script looks for a Jira ticket created within the last 5 minutes, and the creates a Google Drive folder structure and copies files from a central location into the folders. 
+Created June 2023 by Kaitlin Purdham. 
+*/
+
+
+function main() {
+
+    function getJiraIssues() {
+    // Grab Jira issues created in the last 5 minutes that meet the JQL query 
+      var jqlQuery = " project = <PROJECTKEY> AND issuetype = <ISSUETYPE>> AND created >= -5m";
+      var options = {
+        'method': 'get',
+        'contentType': 'application/json',
+        'headers': {
+          'Authorization': 'Basic ' + Utilities.base64Encode(username + ':' + apiToken)
+        },
+        'muteHttpExceptions': true
+      };
+  
+      var url = 'https://<example-atlassian-base-URL>/rest/api/2/search?jql=' + encodeURIComponent(jqlQuery);
+  
+  
+      var sheet = SpreadsheetApp.getActiveSheet();
+      var headers = sheet.getRange(1, 1, 1, 8).getValues()[0];
+  
+      var response = UrlFetchApp.fetch(url, options);
+  
+      //console.log(response.getContentText())
+  
+      if (response.getResponseCode() === 200) {
+        var data = JSON.parse(response.getContentText());
+  
+        var issues = data.issues.map(function (issue) {
+          var issueData = {};
+  
+          issueData['Summary'] = issue.fields.summary;
+          issueData['Assignee'] = issue.fields.assignee ? issue.fields.assignee.displayName : '';
+          issueData['Issue Key'] = issue.key;
+          issueData['Issue Type'] = issue.fields.issuetype.name;
+          issueData['Component/s'] = issue.fields.components.map(function (component) {
+            return component.name;
+          }).join(', ');
+          issueData['Status'] = issue.fields.status.name;
+          issueData['Created'] = issue.fields.created;
+          issueData['Updated'] = issue.fields.updated;
+  
+          return issueData;
+        });
+  
+        var row = sheet.getLastRow() + 1;
+        var numRows = issues.length;
+        var numCols = headers.length;
+  
+        if (issues.length > 0) {
+          //if there is a new issue detected
+          activeIssueDetected = true;
+          sheet.getRange(row, 1, numRows, numCols).setValues(issues.map(function (issue) {
+            return headers.map(function (header) {
+              return issue[header];
+            });
+          }));
+        }
+      }
+    }
+  
+    function createDriveFolders(summary) {
+    //Create folder structure using the 'Summary' of the Jira Ticket for the root folder name
+      var shareDriveID = "<example-share-drive-ID>";
+      //Advantage Client Share Drive ID
+      var sharedDrive = DriveApp.getFolderById(shareDriveID);
+  
+      //Create Root Client Folder
+      var rootClientFolder = sharedDrive.createFolder(summary);
+  
+      //Create Level 2 Folders
+      var lvl2SupportFolder = rootClientFolder.createFolder("Support");
+      var lvl2ImplementationFolder = rootClientFolder.createFolder("Implementation");
+      var lvl2ClientFolder = rootClientFolder.createFolder("Simpli.fi Advantage Folder - " + summary);
+  
+      //Create Level 3 Folders
+      var lvl3AccountingFolder = lvl2ImplementationFolder.createFolder("Accounting");
+      var lvl3MediaFolder = lvl2ImplementationFolder.createFolder("Media");
+      var lvl3ProductionFolder = lvl2ImplementationFolder.createFolder("Production");
+      var lvl3ImplementationItemsFolder = lvl2ClientFolder.createFolder("Implementation Items");
+  
+      //Create Level 4 Folders
+      var lvl4GLReportWriterSamples = lvl3ImplementationItemsFolder.createFolder("GL Report Writer Samples");
+      var lvl4GLImplementationGuidesChecklists = lvl3ImplementationItemsFolder.createFolder("Implementation Guides & Checklists");
+      var lvl4GLSampleImportFiles = lvl3ImplementationItemsFolder.createFolder("Sample Import Files");
+      var lvl4CheckWritingSamplesFolder = lvl3ImplementationItemsFolder.createFolder("Check Writing Samples");
+  
+  
+      //Set Permissions On Folders
+      rootClientFolderID = rootClientFolder.getId();
+  
+      const properties = {
+        'role': 'fileOrganizer',
+        'type': 'group',
+        'value': '<email address>'
+      };
+      var args = {
+        supportsAllDrives: true,
+        sendNotificationEmails: false,
+      };
+      Drive.Permissions.insert(properties, lvl2ClientFolder.getId(), args);
+      Drive.Permissions.insert(properties, lvl3AccountingFolder.getId(), args)
+      Drive.Permissions.insert(properties, lvl3MediaFolder.getId(), args)
+      Drive.Permissions.insert(properties, lvl3ProductionFolder.getId(), args)
+      Drive.Permissions.insert(properties, lvl3ImplementationItemsFolder.getId(), args)
+      Drive.Permissions.insert(properties, lvl4CheckWritingSamplesFolder.getId(), args)
+  
+  
+  
+  
+      //copy files to newly created folders
+  
+      //folder IDs
+      var checkWritingFormatSamplesSourceFolder = DriveApp.getFolderById('<folder ID>');
+      var GLReportWriterSamplesSourceFolder = DriveApp.getFolderById('<folder ID>');
+  
+      //file IDs
+      //we have to use the MimeType.ZIP and while loop because they're ZIP files, otherwise the Drive.Files.Copy would not work for them
+      var AmpersandAGENCYCableTrackSysfileRequestFile = DriveApp.getFileById('<file ID>');
+      var checkWritingFormatSamplesZIPFolder = checkWritingFormatSamplesSourceFolder.getFilesByType(MimeType.ZIP);
+      while (checkWritingFormatSamplesZIPFolder.hasNext()) {
+        var checkWritingFormatSamplesZipFile = checkWritingFormatSamplesZIPFolder.next();
+      }
+  
+      var GLReportWriterSamplesFolder = GLReportWriterSamplesSourceFolder.getFilesByType(MimeType.ZIP);
+      while (GLReportWriterSamplesFolder.hasNext()) {
+        var GLReportsv6_70_0120170526 = GLReportWriterSamplesFolder.next();
+      }
+  
+      var AccountingWorkflowFile = DriveApp.getFileById('<file ID>');
+      var AdvantageImplementationGuideFile = DriveApp.getFileById('<file ID>');
+      var AdvantageMediaImplementationGuideFile = DriveApp.getFileById('<file ID>');
+      var AdvantagePostmarkIntegrationFile = DriveApp.getFileById('<file ID>');
+      var FormattingandAddingEmployeeSignaturesFile = DriveApp.getFileById('<file ID>');
+      var FormattingandAddingLogosFile = DriveApp.getFileById('<file ID>');
+      var MediaWorkflowFile = DriveApp.getFileById('<file ID>');
+      var QuickStartMediaToolsDatabaseWorkbookFile = DriveApp.getFileById('<file ID>');
+      var QuickStartDatabaseWorkbookFile = DriveApp.getFileById('<file ID>');
+      var Sample_ClientContact_ImportFile = DriveApp.getFileById('<file ID>');
+      var Sample_Client_ImportFile = DriveApp.getFileById('<file ID>');
+      var Sample_Division_ImportFile = DriveApp.getFileById('<file ID>');
+      var Sample_Employee_ImportFile = DriveApp.getFileById('<file ID>');
+      var Sample_Product_ImportFile = DriveApp.getFileById('<file ID>');
+      var Sample_VendorRep_ImportFile = DriveApp.getFileById('<file ID>');
+      var Sample_Vendor_ImportFile = DriveApp.getFileById('<file ID>');
+      var howToAccessYourCompanysSimplifiAdvantageFile = DriveApp.getFileById('<file ID>')
+  
+  
+      Utilities.sleep(30000)
+      Drive.Files.copy({ parents: [{ id: lvl2ClientFolder.getId() }] }, AmpersandAGENCYCableTrackSysfileRequestFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4CheckWritingSamplesFolder.getId() }] }, checkWritingFormatSamplesZipFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLReportWriterSamples.getId() }] }, GLReportsv6_70_0120170526.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, AccountingWorkflowFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, AdvantageImplementationGuideFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, AdvantageMediaImplementationGuideFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, AdvantagePostmarkIntegrationFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, FormattingandAddingEmployeeSignaturesFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, FormattingandAddingLogosFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, MediaWorkflowFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, QuickStartMediaToolsDatabaseWorkbookFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLImplementationGuidesChecklists.getId() }] }, QuickStartDatabaseWorkbookFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_ClientContact_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_Client_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_Division_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_Employee_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_Product_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_VendorRep_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl4GLSampleImportFiles.getId() }] }, Sample_Vendor_ImportFile.getId(), { supportsAllDrives: true })
+      Drive.Files.copy({ parents: [{ id: lvl2ClientFolder.getId() }] }, howToAccessYourCompanysSimplifiAdvantageFile.getId(), { supportsAllDrives: true })
+    }
+  
+    function commentInJira(rootClientFolderID, issueKey) {
+  
+      var jiraCommentText = "Google Drive folders created under Advantage Client Share. Link:  https://drive.google.com/drive/folders/" + rootClientFolderID;
+      var url = 'https://<atlassian base URL>/rest/api/2';
+      var issueUrl = url + "/issue/" + issueKey + "/comment";
+  
+      var options = {
+        method: "POST",
+        headers: {
+          Authorization: "Basic " + Utilities.base64Encode(username + ":" + apiToken),
+          "Content-Type": "application/json"
+        },
+        payload: JSON.stringify({ body: jiraCommentText })
+      };
+      var response = UrlFetchApp.fetch(issueUrl, options);
+  
+  
+    }
+  
+  
+  
+  
+    //*********MAIN**************
+  
+    //if an active issue is detected, this var is set to true
+    var activeIssueDetected = false;
+  
+    //Declare Jira Variables
+    var username = "<username>";
+    var apiToken = "<api token>";
+  
+    //populate spreadsheet with jira issues created in the last 5 minutes
+    getJiraIssues()
+  
+    //get summary and created date from spreadsheet
+    var rootClientFolderID;
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var data = sheet.getDataRange().getValues();
+    let rowNum = 1;
+    data.forEach(function (row) {
+      rowNum = rowNum + 1;
+      var summary = sheet.getRange(rowNum, 1).getValue();
+  
+      if (summary.length > 0) {
+        Logger.log(summary);
+  
+        //create the drive folders and set permissions
+        createDriveFolders(summary);
+  
+        //comment back on jira ticket
+        var issueKey = sheet.getRange(rowNum, 3).getValue();
+        commentInJira(rootClientFolderID, issueKey);
+  
+      }
+    });
+  
+    //clear sheet
+    if (activeIssueDetected == true) {
+      var range = sheet.getDataRange();
+      var numRows = range.getNumRows();
+      var rangeToClear = sheet.getRange(2, 1, numRows - 1, sheet.getLastColumn());
+      rangeToClear.clear();
+    }
+  
+  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
